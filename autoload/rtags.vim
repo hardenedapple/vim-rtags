@@ -8,6 +8,58 @@ else
     let s:rtagsAsync = 0
 endif
 
+" Controlling JobState {{{
+function rtags#SetJobStateFinish()
+    let b:rtags_state['state'] = 'finish'
+endfunction
+
+function rtags#AddJobStandard(eventType, data)
+    call add(b:rtags_state[a:eventType], a:data)
+endfunction
+
+function rtags#SetJobStateReady()
+    let b:rtags_state['state'] = 'ready'
+endfunction
+
+function rtags#IsJobStateReady()
+    if b:rtags_state['state'] == 'ready'
+        return 1
+    endif
+    return 0
+endfunction
+
+function rtags#IsJobStateBusy()
+    if b:rtags_state['state'] == 'busy'
+        return 1
+    endif
+    return 0
+endfunction
+
+function rtags#IsJobStateFinish()
+    if b:rtags_state['state'] == 'finish'
+        return 1
+    endif
+    return 0
+endfunction
+
+
+function rtags#SetStartJobState()
+    let b:rtags_state['state'] = 'busy'
+    let b:rtags_state['stdout'] = []
+    let b:rtags_state['stderr'] = []
+endfunction
+
+function rtags#GetJobStdOutput()
+    return b:rtags_state['stdout']
+endfunction
+
+function rtags#ExistsAndCreateRtagsState()
+    if !exists('b:rtags_state')
+        let b:rtags_state = { 'state': 'ready', 'stdout': [], 'stderr': [] }
+    endif
+endfunction
+" }}}
+
 " Only load this when the different
 if g:rtagsAutoLaunchRdm
     call system(g:rtagsRcCmd." -w")
@@ -28,6 +80,17 @@ let s:LOC_OPEN_OPTS = {
             \ s:NEW_TAB : 'tab'
             \ }
 
+" Utils {{{
+function rtags#cloneCurrentBuffer(type)
+    if a:type == s:SAME_WINDOW
+        return
+    endif
+
+    let [lnum, col] = getpos('.')[1:2]
+    exec s:LOC_OPEN_OPTS[a:type]." new ".expand("%")
+    call cursor(lnum, col)
+endfunction
+
 """
 " Logging routine
 """
@@ -36,6 +99,91 @@ function rtags#Log(message)
         call writefile([string(a:message)], g:rtagsLog, "a")
     endif
 endfunction
+
+function rtags#getRcCmd()
+    let cmd = g:rtagsRcCmd
+    let cmd .= " --absolute-path "
+    if g:rtagsExcludeSysHeaders == 1
+        return cmd." -H "
+    endif
+    return cmd
+endfunction
+
+function rtags#getCurrentLocation()
+    let [lnum, col] = getpos('.')[1:2]
+    return printf("%s:%s:%s", expand("%"), lnum, col)
+endfunction
+
+function rtags#jumpToLocationInternal(file, line, col)
+    try
+        if a:file != expand("%:p")
+            exe "e ".a:file
+        endif
+        call cursor(a:line, a:col)
+        return 1
+    catch /.*/
+        echohl ErrorMsg
+        echomsg v:exception
+        echohl None
+        return 0
+    endtry
+endfunction
+
+function rtags#CreateProject()
+
+endfunction
+
+function rtags#parseSourceLocation(string)
+    let [location; symbol_detail] = split(a:string, '\s\+')
+    let splittedLine = split(location, ':')
+    if len(splittedLine) == 3
+        let [jump_file, lnum, col; rest] = splittedLine
+        " Must be a path, therefore leading / is compulsory
+        if jump_file[0] == '/'
+            return [jump_file, lnum, col]
+        endif
+    endif
+    return ["","",""]
+endfunction
+
+
+"
+" param[in] results - List of found locations by rc
+" return locations - List of locations dict's recognizable by setloclist
+"
+function rtags#ParseResults(results)
+    let locations = []
+    let nr = 1
+    for record in a:results
+        let [location; rest] = split(record, '\s\+')
+        let [file, lnum, col] = rtags#parseSourceLocation(location)
+
+        let entry = {}
+        "        let entry.bufn = 0
+        let entry.filename = substitute(file, getcwd().'/', '', 'g')
+        let entry.filepath = file
+        let entry.lnum = lnum
+        "        let entry.pattern = ''
+        let entry.col = col
+        let entry.vcol = 0
+        "        let entry.nr = nr
+        let entry.text = join(rest, ' ')
+        let entry.type = 'ref'
+
+        call add(locations, entry)
+
+        let nr = nr + 1
+    endfor
+    return locations
+endfunction
+
+function rtags#TempFile(job_cid)
+    return '/tmp/neovim_async_rtags.tmp.' . getpid() . '.' . a:job_cid
+endfunction
+
+" }}}
+
+" Execution {{{
 
 "
 " Executes rc with given arguments and returns rc output
@@ -83,43 +231,115 @@ function rtags#ExecuteRC(args)
     return split(output, '\n\+')
 endfunction
 
-function rtags#CreateProject()
+function rtags#ExecuteHandlers(output, handlers)
+    let result = a:output
+    for Handler in a:handlers
+        if type(Handler) == 3
+            let HandlerFunc = Handler[0]
+            let args = Handler[1]
+            call HandlerFunc(result, args)
+        else
+            try
+                let result = Handler(result)
+            catch /E706/
+                " If we're not returning the right type we're probably done
+                return
+            endtry
+        endif
+    endfor 
+endfunction
+
+" Async {{{
+function rtags#HandleResults(job_id, data, event)
+
+
+    if a:event == 'vim_stdout'
+        call add(s:result_stdout[a:job_id], a:data)
+    elseif a:event == 'vim_exit'
+
+        let job_cid = remove(s:jobs, a:job_id)
+        let handlers = remove(s:result_handlers, a:job_id)
+        let output = remove(s:result_stdout, a:job_id)
+
+        call rtags#ExecuteHandlers(output, handlers)
+    else
+        let job_cid = remove(s:jobs, a:job_id)
+        let temp_file = rtags#TempFile(job_cid)
+        let output = readfile(temp_file)
+        let handlers = remove(s:result_handlers, a:job_id)
+        call rtags#ExecuteHandlers(output, handlers)
+        execute 'silent !rm -f ' . temp_file
+    endif
 
 endfunction
 
-"
-" param[in] results - List of found locations by rc
-" return locations - List of locations dict's recognizable by setloclist
-"
-function rtags#ParseResults(results)
-    let locations = []
-    let nr = 1
-    for record in a:results
-        let [location; rest] = split(record, '\s\+')
-        let [file, lnum, col] = rtags#parseSourceLocation(location)
+function rtags#ExecuteRCAsync(args, handlers)
+    let cmd = rtags#getRcCmd()
 
-        let entry = {}
-        "        let entry.bufn = 0
-        let entry.filename = substitute(file, getcwd().'/', '', 'g')
-        let entry.filepath = file
-        let entry.lnum = lnum
-        "        let entry.pattern = ''
-        let entry.col = col
-        let entry.vcol = 0
-        "        let entry.nr = nr
-        let entry.text = join(rest, ' ')
-        let entry.type = 'ref'
+    " Give rdm unsaved file content, so that you don't have to save files
+    " before each rc invocation.
+    if exists('b:rtags_sent_content')
+        let content = join(getline(1, line('$')), "\n")
+        if b:rtags_sent_content != content
+            let unsaved_content = content
+        endif
+    elseif &modified
+        let unsaved_content = join(getline(1, line('$')), "\n")
+    endif
+    if exists('unsaved_content')
+        let filename = expand("%")
+        let output = system(printf("%s --unsaved-file=%s:%s -V %s", cmd, filename, strlen(unsaved_content), filename), unsaved_content)
+        let b:rtags_sent_content = unsaved_content
+    endif
 
-        call add(locations, entry)
-
-        let nr = nr + 1
+    " prepare for the actual command invocation
+    for [key, value] in items(a:args)
+        let cmd .= " ".key
+        if len(value) > 1
+            let cmd .= " ".value
+        endif
     endfor
-    return locations
-endfunction
 
+    let s:callbacks = { 'on_exit' : function('rtags#HandleResults') }
+
+    let s:job_cid = s:job_cid + 1
+    " should have out+err redirection portable for various shells.
+    if has('nvim')
+        let cmd = cmd . '>& ' . rtags#TempFile(s:job_cid)
+        let job = jobstart(cmd, s:callbacks)
+        let s:jobs[job] = s:job_cid
+        let s:result_handlers[job] = a:handlers
+    elseif has('job') && has('channel')
+        let l:opts = {}
+        let l:opts.mode = 'nl'
+        let l:opts.out_cb = {ch, data -> rtags#HandleResults(ch_info(ch).id, data, 'vim_stdout')}
+        let l:opts.exit_cb = {ch, data -> rtags#HandleResults(ch_info(ch).id, data,'vim_exit')}
+        let l:opts.stoponexit = 'kill'
+        let job = job_start(cmd, l:opts)
+        let channel = ch_info(job_getchannel(job)).id
+        let s:result_stdout[channel] = []
+        let s:jobs[channel] = s:job_cid
+        let s:result_handlers[channel] = a:handlers
+    endif
+
+endfunction
+" }}}
+
+function rtags#ExecuteThen(args, handlers)
+    if s:rtagsAsync == 1
+        call rtags#ExecuteRCAsync(a:args, a:handlers)
+    else
+        let result = rtags#ExecuteRC(a:args)
+        call rtags#ExecuteHandlers(result, a:handlers)
+    endif
+endfunction
+" }}}
+
+" Class Hierarchy Helpers {{{
 function rtags#ExtractClassHierarchyLine(line)
     return substitute(a:line, '\v.*\s+(\S+:[0-9]+:[0-9]+:\s)', '\1', '')
 endfunction
+
 
 "
 " Converts a class hierarchy of 'rc --class-hierarchy' like:
@@ -155,6 +375,7 @@ function rtags#ExtractSuperClasses(results)
     endfor
     return extracted
 endfunction
+
 
 "
 " Converts a class hierarchy of 'rc --class-hierarchy' like:
@@ -192,6 +413,9 @@ function rtags#ExtractSubClasses(results)
     return extracted
 endfunction
 
+" }}}
+
+" Display reply from `rc` {{{
 "
 " param[in] locations - List of locations, one per line
 "
@@ -262,20 +486,10 @@ vim.eval('rtags#DisplayLocations(%s)' % json.dumps(quickfix_errors))
 endpython
 endfunction
 
-function rtags#getRcCmd()
-    let cmd = g:rtagsRcCmd
-    let cmd .= " --absolute-path "
-    if g:rtagsExcludeSysHeaders == 1
-        return cmd." -H "
-    endif
-    return cmd
-endfunction
+" }}}
 
-function rtags#getCurrentLocation()
-    let [lnum, col] = getpos('.')[1:2]
-    return printf("%s:%s:%s", expand("%"), lnum, col)
-endfunction
-
+" User Commands {{{
+" SymbolInfo {{{
 function rtags#SymbolInfoHandler(output)
     echo join(a:output, "\n")
 endfunction
@@ -283,35 +497,21 @@ endfunction
 function rtags#SymbolInfo()
     call rtags#ExecuteThen({ '-U' : rtags#getCurrentLocation() }, [function('rtags#SymbolInfoHandler')])
 endfunction
+" }}}
 
-function rtags#cloneCurrentBuffer(type)
-    if a:type == s:SAME_WINDOW
-        return
+" {{{ JumpTo
+function rtags#saveLocation()
+    let jumpListLen = len(g:rtagsJumpStack) 
+    if jumpListLen > g:rtagsJumpStackMaxSize
+        call remove(g:rtagsJumpStack, 0)
     endif
-
     let [lnum, col] = getpos('.')[1:2]
-    exec s:LOC_OPEN_OPTS[a:type]." new ".expand("%")
-    call cursor(lnum, col)
+    call add(g:rtagsJumpStack, [expand("%"), lnum, col])
 endfunction
 
 function rtags#jumpToLocation(file, line, col)
     call rtags#saveLocation()
     return rtags#jumpToLocationInternal(a:file, a:line, a:col)
-endfunction
-
-function rtags#jumpToLocationInternal(file, line, col)
-    try
-        if a:file != expand("%:p")
-            exe "e ".a:file
-        endif
-        call cursor(a:line, a:col)
-        return 1
-    catch /.*/
-        echohl ErrorMsg
-        echomsg v:exception
-        echohl None
-        return 0
-    endtry
 endfunction
 
 function rtags#JumpToHandler(results, args)
@@ -369,42 +569,6 @@ function rtags#JumpToNewTab(...)
   call rtags#JumpTo(s:NEW_TAB, a:000)
 endfunction
 
-
-function rtags#parseSourceLocation(string)
-    let [location; symbol_detail] = split(a:string, '\s\+')
-    let splittedLine = split(location, ':')
-    if len(splittedLine) == 3
-        let [jump_file, lnum, col; rest] = splittedLine
-        " Must be a path, therefore leading / is compulsory
-        if jump_file[0] == '/'
-            return [jump_file, lnum, col]
-        endif
-    endif
-    return ["","",""]
-endfunction
-
-function rtags#saveLocation()
-    let [lnum, col] = getpos('.')[1:2]
-    call rtags#pushToStack([expand("%"), lnum, col])
-endfunction
-
-function rtags#pushToStack(location)
-    let jumpListLen = len(g:rtagsJumpStack) 
-    if jumpListLen > g:rtagsJumpStackMaxSize
-        call remove(g:rtagsJumpStack, 0)
-    endif
-    call add(g:rtagsJumpStack, a:location)
-endfunction
-
-function rtags#JumpBack()
-    if len(g:rtagsJumpStack) > 0
-        let [jump_file, lnum, col] = remove(g:rtagsJumpStack, -1)
-        call rtags#jumpToLocationInternal(jump_file, lnum, col)
-    else
-        echo "rtags: jump stack is empty"
-    endif
-endfunction
-
 function rtags#JumpToParentHandler(results)
     let results = a:results
     for line in results
@@ -439,7 +603,9 @@ endfunction
 function s:GetCharacterUnderCursor()
     return matchstr(getline('.'), '\%' . col('.') . 'c.')
 endfunction
+" }}}
 
+" RenameSymbol {{{
 function rtags#RenameSymbolUnderCursorHandler(output)
     let locations = rtags#ParseResults(a:output)
     if len(locations) > 0
@@ -486,114 +652,7 @@ function rtags#RenameSymbolUnderCursor()
 
     call rtags#ExecuteThen(args, [function('rtags#RenameSymbolUnderCursorHandler')])
 endfunction
-
-function rtags#TempFile(job_cid)
-    return '/tmp/neovim_async_rtags.tmp.' . getpid() . '.' . a:job_cid
-endfunction
-
-function rtags#ExecuteRCAsync(args, handlers)
-    let cmd = rtags#getRcCmd()
-
-    " Give rdm unsaved file content, so that you don't have to save files
-    " before each rc invocation.
-    if exists('b:rtags_sent_content')
-        let content = join(getline(1, line('$')), "\n")
-        if b:rtags_sent_content != content
-            let unsaved_content = content
-        endif
-    elseif &modified
-        let unsaved_content = join(getline(1, line('$')), "\n")
-    endif
-    if exists('unsaved_content')
-        let filename = expand("%")
-        let output = system(printf("%s --unsaved-file=%s:%s -V %s", cmd, filename, strlen(unsaved_content), filename), unsaved_content)
-        let b:rtags_sent_content = unsaved_content
-    endif
-
-    " prepare for the actual command invocation
-    for [key, value] in items(a:args)
-        let cmd .= " ".key
-        if len(value) > 1
-            let cmd .= " ".value
-        endif
-    endfor
-
-    let s:callbacks = {
-                \ 'on_exit' : function('rtags#HandleResults')
-                \ }
-
-    let s:job_cid = s:job_cid + 1
-    " should have out+err redirection portable for various shells.
-    if has('nvim')
-        let cmd = cmd . '>& ' . rtags#TempFile(s:job_cid)
-        let job = jobstart(cmd, s:callbacks)
-        let s:jobs[job] = s:job_cid
-        let s:result_handlers[job] = a:handlers
-    elseif has('job') && has('channel')
-        let l:opts = {}
-        let l:opts.mode = 'nl'
-        let l:opts.out_cb = {ch, data -> rtags#HandleResults(ch_info(ch).id, data, 'vim_stdout')}
-        let l:opts.exit_cb = {ch, data -> rtags#HandleResults(ch_info(ch).id, data,'vim_exit')}
-        let l:opts.stoponexit = 'kill'
-        let job = job_start(cmd, l:opts)
-        let channel = ch_info(job_getchannel(job)).id
-        let s:result_stdout[channel] = []
-        let s:jobs[channel] = s:job_cid
-        let s:result_handlers[channel] = a:handlers
-    endif
-
-endfunction
-
-function rtags#HandleResults(job_id, data, event)
-
-
-    if a:event == 'vim_stdout'
-        call add(s:result_stdout[a:job_id], a:data)
-    elseif a:event == 'vim_exit'
-
-        let job_cid = remove(s:jobs, a:job_id)
-        let handlers = remove(s:result_handlers, a:job_id)
-        let output = remove(s:result_stdout, a:job_id)
-
-        call rtags#ExecuteHandlers(output, handlers)
-    else
-        let job_cid = remove(s:jobs, a:job_id)
-        let temp_file = rtags#TempFile(job_cid)
-        let output = readfile(temp_file)
-        let handlers = remove(s:result_handlers, a:job_id)
-        call rtags#ExecuteHandlers(output, handlers)
-        execute 'silent !rm -f ' . temp_file
-    endif
-
-endfunction
-
-function rtags#ExecuteHandlers(output, handlers)
-    let result = a:output
-    for Handler in a:handlers
-        if type(Handler) == 3
-            let HandlerFunc = Handler[0]
-            let args = Handler[1]
-            call HandlerFunc(result, args)
-        else
-            try
-                let result = Handler(result)
-            catch /E706/
-                " If we're not returning the right type we're probably done
-                return
-            endtry
-        endif
-    endfor 
-endfunction
-
-echom 'Defining ExecuteThen'
-function rtags#ExecuteThen(args, handlers)
-    if s:rtagsAsync == 1
-        call rtags#ExecuteRCAsync(a:args, a:handlers)
-    else
-        let result = rtags#ExecuteRC(a:args)
-        call rtags#ExecuteHandlers(result, a:handlers)
-    endif
-endfunction
+" }}}
 
 function rtags#FindRefs()
     let args = {
@@ -622,15 +681,6 @@ function rtags#FindVirtuals()
     call rtags#ExecuteThen(args, [function('rtags#DisplayResults')])
 endfunction
 
-function rtags#FindRefsByName(name)
-    let args = {
-                \ '-a' : '',
-                \ '-e' : '',
-                \ '-R' : a:name }
-
-    call rtags#ExecuteThen(args, [function('rtags#DisplayResults')])
-endfunction
-
 " case insensitive FindRefsByName
 function rtags#IFindRefsByName(name)
     let args = {
@@ -638,6 +688,15 @@ function rtags#IFindRefsByName(name)
                 \ '-e' : '',
                 \ '-R' : a:name,
                 \ '-I' : '' }
+
+    call rtags#ExecuteThen(args, [function('rtags#DisplayResults')])
+endfunction
+
+function rtags#FindRefsByName(name)
+    let args = {
+                \ '-a' : '',
+                \ '-e' : '',
+                \ '-R' : a:name }
 
     call rtags#ExecuteThen(args, [function('rtags#DisplayResults')])
 endfunction
@@ -658,6 +717,11 @@ function rtags#FindSymbols(pattern)
     call rtags#ExecuteThen(args, [function('rtags#DisplayResults')])
 endfunction
 
+function rtags#FindSymbolsOfWordUnderCursor()
+    let wordUnderCursor = expand("<cword>")
+    call rtags#FindSymbols(wordUnderCursor)
+endfunction
+
 " Method for tab-completion for vim's commands
 function rtags#CompleteSymbols(arg, line, pos)
     if len(a:arg) < g:rtagsMinCharsForCommandCompletion
@@ -674,6 +738,11 @@ function rtags#IFindSymbols(pattern)
                 \ '-F' : a:pattern }
 
     call rtags#ExecuteThen(args, [function('rtags#DisplayResults')])
+endfunction
+
+" Project Management {{{
+function rtags#ProjectOpen(pattern)
+    call rtags#ExecuteThen({ '-w' : a:pattern }, [])
 endfunction
 
 function rtags#ProjectListHandler(output)
@@ -693,10 +762,6 @@ function rtags#ProjectList()
     call rtags#ExecuteThen({ '-w' : '' }, [function('rtags#ProjectListHandler')])
 endfunction
 
-function rtags#ProjectOpen(pattern)
-    call rtags#ExecuteThen({ '-w' : a:pattern }, [])
-endfunction
-
 function rtags#LoadCompilationDb(pattern)
     call rtags#ExecuteThen({ '-J' : a:pattern }, [])
 endfunction
@@ -704,7 +769,9 @@ endfunction
 function rtags#ProjectClose(pattern)
     call rtags#ExecuteThen({ '-u' : a:pattern }, [])
 endfunction
+" }}}
 
+" Preprocess {{{
 function rtags#PreprocessFileHandler(result)
     vnew
     call append(0, a:result)
@@ -713,14 +780,10 @@ endfunction
 function rtags#PreprocessFile()
     call rtags#ExecuteThen({ '-E' : expand("%:p") }, [function('rtags#PreprocessFileHandler')])
 endfunction
+" }}}
 
 function rtags#ReindexFile()
     call rtags#ExecuteThen({ '-V' : expand("%:p") }, [])
-endfunction
-
-function rtags#FindSymbolsOfWordUnderCursor()
-    let wordUnderCursor = expand("<cword>")
-    call rtags#FindSymbols(wordUnderCursor)
 endfunction
 
 function rtags#Diagnostics()
@@ -730,7 +793,8 @@ function rtags#Diagnostics()
 
     call rtags#ExecuteThen(args, [function('rtags#DisplayDiagnosticsResults')])
 endfunction
-
+   
+" Completion function {{{
 "
 " This function assumes it is invoked from insert mode
 "
@@ -774,147 +838,6 @@ function rtags#CompleteAtCursor(wordStart, base)
     "        echo r
     "    endfor
     "    call rtags#DisplayResults(result)
-endfunction
-    
-function s:RcExecuteJobCompletion()
-    call rtags#SetJobStateFinish()
-    if ! empty(b:rtags_state['stdout']) && mode() == 'i'
-        call feedkeys("\<C-x>\<C-o>", "t")
-    else
-        call rtags#RtagsCompleteFunc(0, rtags#RtagsCompleteFunc(1, 0))
-    endif
-endfunction
-
-"{{{ RcExecuteJobHandler
-"Handles stdout/stderr/exit events, and stores the stdout/stderr received from the shells.
-function rtags#RcExecuteJobHandler(job_id, data, event)
-    if a:event == 'exit'
-        call s:RcExecuteJobCompletion()
-    else
-        call rtags#AddJobStandard(a:event, a:data)
-    endif
-endf
-
-function rtags#SetJobStateFinish()
-    let b:rtags_state['state'] = 'finish'
-endfunction
-
-function rtags#AddJobStandard(eventType, data)
-    call add(b:rtags_state[a:eventType], a:data)
-endfunction
-
-function rtags#SetJobStateReady()
-    let b:rtags_state['state'] = 'ready'
-endfunction
-
-function rtags#IsJobStateReady()
-    if b:rtags_state['state'] == 'ready'
-        return 1
-    endif
-    return 0
-endfunction
-
-function rtags#IsJobStateBusy()
-    if b:rtags_state['state'] == 'busy'
-        return 1
-    endif
-    return 0
-endfunction
-
-function rtags#IsJobStateFinish()
-    if b:rtags_state['state'] == 'finish'
-        return 1
-    endif
-    return 0
-endfunction
-
-
-function rtags#SetStartJobState()
-    let b:rtags_state['state'] = 'busy'
-    let b:rtags_state['stdout'] = []
-    let b:rtags_state['stderr'] = []
-endfunction
-
-function rtags#GetJobStdOutput()
-    return b:rtags_state['stdout']
-endfunction
-
-function rtags#ExistsAndCreateRtagsState()
-    if !exists('b:rtags_state')
-        let b:rtags_state = { 'state': 'ready', 'stdout': [], 'stderr': [] }
-    endif
-endfunction
-
-"{{{ s:RcExecute
-" Execute clang binary to generate completions and diagnostics.
-" Global variable:
-" Buffer vars:
-"     b:rtags_state => {
-"       'state' :  // updated to 'ready' in sync mode
-"       'stdout':  // updated in sync mode
-"       'stderr':  // updated in sync mode
-"     }
-"
-"     b:clang_execute_job_id  // used to stop previous job
-"
-" @root Clang root, project directory
-" @line Line to complete
-" @col Column to complete
-" @return [completion, diagnostics]
-function s:RcJobExecute(offset, line, col)
-
-    let file = expand("%:p")
-    let l:cmd = printf("rc --absolute-path --synchronous-completions -l %s:%s:%s --unsaved-file=%s:%s", file, a:line, a:col, file, a:offset)
-
-    if exists('b:rc_execute_job_id') && job_status(b:rc_execute_job_id) == 'run'
-      try
-        call job_stop(b:rc_execute_job_id, 'term')
-        unlet b:rc_execute_job_id
-      catch
-        " Ignore
-      endtry
-    endif
-
-    call rtags#SetStartJobState()
-
-    let l:argv = l:cmd
-    let l:opts = {}
-    let l:opts.mode = 'nl'
-    let l:opts.in_io = 'buffer'
-    let l:opts.in_buf = bufnr('%')
-    let l:opts.out_cb = {ch, data -> rtags#RcExecuteJobHandler(ch, data,  'stdout')}
-    let l:opts.err_cb = {ch, data -> rtags#RcExecuteJobHandler(ch, data,  'stderr')}
-    let l:opts.exit_cb = {ch, data -> rtags#RcExecuteJobHandler(ch, data, 'exit')}
-    let l:opts.stoponexit = 'kill'
-
-    let l:jobid = job_start(l:argv, l:opts)
-    let b:rc_execute_job_id = l:jobid
-
-    if job_status(l:jobid) != 'run'
-        unlet b:rc_execute_job_id
-    endif
-
-endf
-
-"""
-" Temporarily the way this function works is:
-"     - completeion invoked on
-"         object.meth*
-"       , where * is cursor position
-"     - find the position of a dot/arrow
-"     - invoke completion through rc
-"     - filter out options that start with meth (in this case).
-"     - show completion options
-" 
-"     Reason: rtags returns all options regardless of already type method name
-"     portion
-"""
-function rtags#RtagsCompleteFunc(findstart, base)
-    if s:rtagsAsync == 1 && !has('nvim')
-        return s:RtagsCompleteFunc(a:findstart, a:base, 1)
-    else
-        return s:RtagsCompleteFunc(a:findstart, a:base, 0)
-    endif
 endfunction
 
 function s:RtagsCompleteFunc(findstart, base, async)
@@ -991,6 +914,98 @@ function s:RtagsCompleteFunc(findstart, base, async)
         return a
     endif
 endfunction
+
+"""
+" Temporarily the way this function works is:
+"     - completeion invoked on
+"         object.meth*
+"       , where * is cursor position
+"     - find the position of a dot/arrow
+"     - invoke completion through rc
+"     - filter out options that start with meth (in this case).
+"     - show completion options
+" 
+"     Reason: rtags returns all options regardless of already type method name
+"     portion
+"""
+function rtags#RtagsCompleteFunc(findstart, base)
+    if s:rtagsAsync == 1 && !has('nvim')
+        return s:RtagsCompleteFunc(a:findstart, a:base, 1)
+    else
+        return s:RtagsCompleteFunc(a:findstart, a:base, 0)
+    endif
+endfunction
+
+function s:RcExecuteJobCompletion()
+    call rtags#SetJobStateFinish()
+    if ! empty(b:rtags_state['stdout']) && mode() == 'i'
+        call feedkeys("\<C-x>\<C-o>", "t")
+    else
+        call rtags#RtagsCompleteFunc(0, rtags#RtagsCompleteFunc(1, 0))
+    endif
+endfunction
+
+"Handles stdout/stderr/exit events, and stores the stdout/stderr received from the shells.
+function rtags#RcExecuteJobHandler(job_id, data, event)
+    if a:event == 'exit'
+        call s:RcExecuteJobCompletion()
+    else
+        call rtags#AddJobStandard(a:event, a:data)
+    endif
+endf
+
+" Execute clang binary to generate completions and diagnostics.
+" Global variable:
+" Buffer vars:
+"     b:rtags_state => {
+"       'state' :  // updated to 'ready' in sync mode
+"       'stdout':  // updated in sync mode
+"       'stderr':  // updated in sync mode
+"     }
+"
+"     b:clang_execute_job_id  // used to stop previous job
+"
+" @root Clang root, project directory
+" @line Line to complete
+" @col Column to complete
+" @return [completion, diagnostics]
+function s:RcJobExecute(offset, line, col)
+
+    let file = expand("%:p")
+    let l:cmd = printf("rc --absolute-path --synchronous-completions -l %s:%s:%s --unsaved-file=%s:%s", file, a:line, a:col, file, a:offset)
+
+    if exists('b:rc_execute_job_id') && job_status(b:rc_execute_job_id) == 'run'
+      try
+        call job_stop(b:rc_execute_job_id, 'term')
+        unlet b:rc_execute_job_id
+      catch
+        " Ignore
+      endtry
+    endif
+
+    call rtags#SetStartJobState()
+
+    let l:argv = l:cmd
+    let l:opts = {}
+    let l:opts.mode = 'nl'
+    let l:opts.in_io = 'buffer'
+    let l:opts.in_buf = bufnr('%')
+    let l:opts.out_cb = {ch, data -> rtags#RcExecuteJobHandler(ch, data,  'stdout')}
+    let l:opts.err_cb = {ch, data -> rtags#RcExecuteJobHandler(ch, data,  'stderr')}
+    let l:opts.exit_cb = {ch, data -> rtags#RcExecuteJobHandler(ch, data, 'exit')}
+    let l:opts.stoponexit = 'kill'
+
+    let l:jobid = job_start(l:argv, l:opts)
+    let b:rc_execute_job_id = l:jobid
+
+    if job_status(l:jobid) != 'run'
+        unlet b:rc_execute_job_id
+    endif
+
+endf
+" }}}
+
+" }}}
 
 " Helpers to access script locals for unit testing {{{
 function s:get_SID()

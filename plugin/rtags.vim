@@ -62,9 +62,6 @@ if g:rtagsUseGlobalMappings == 1
   nnoremap <Leader>rC :call rtags#FindSuperClasses()<CR>
   nnoremap <Leader>rc :call rtags#FindSubClasses()<CR>
   nnoremap <Leader>rd :call rtags#Diagnostics()<CR>
-  if &completefunc == ""
-    set completefunc=rtags#RtagsCompleteFunc
-  endif
 endif
 
 command -nargs=1 -complete=customlist,rtags#CompleteSymbols RtagsFindSymbols call rtags#FindSymbols(<q-args>)

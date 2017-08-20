@@ -20,8 +20,8 @@ if !get(g:, "rtagsActiveFiletypes", 0) || index(g:rtagsActiveFiletypes, &filetyp
     nnoremap <buffer> <LocalLeader>rC :call rtags#FindSuperClasses()<CR>
     nnoremap <buffer> <LocalLeader>rc :call rtags#FindSubClasses()<CR>
     nnoremap <buffer> <LocalLeader>rd :call rtags#Diagnostics()<CR>
-    if &completefunc == ""
+  endif
+  if get(g:, 'rtagsUseCompleteFunc', 0) && &l:completefunc == ""
       set completefunc=rtags#RtagsCompleteFunc
-    endif
   endif
 endif

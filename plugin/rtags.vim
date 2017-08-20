@@ -34,8 +34,8 @@ if !exists("g:rtagsUseLocationList")
     let g:rtagsUseLocationList = 1
 endif
 
-if !exists("g:rtagsUseDefaultMappings")
-    let g:rtagsUseDefaultMappings = 1
+if !exists("g:rtagsUseGlobalMappings")
+    let g:rtagsUseGlobalMappings = 1
 endif
 
 if !exists("g:rtagsMinCharsForCommandCompletion")
@@ -65,7 +65,7 @@ let s:LOC_OPEN_OPTS = {
             \ g:NEW_TAB : 'tab'
             \ }
 
-if g:rtagsUseDefaultMappings == 1
+if g:rtagsUseGlobalMappings == 1
     noremap <Leader>ri :call rtags#SymbolInfo()<CR>
     noremap <Leader>rj :call rtags#JumpTo(g:SAME_WINDOW)<CR>
     noremap <Leader>rJ :call rtags#JumpTo(g:SAME_WINDOW, { '--declaration-only' : '' })<CR>

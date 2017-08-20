@@ -424,12 +424,12 @@ function rtags#DisplayLocations(locations)
     if g:rtagsUseLocationList == 1
         call setloclist(winnr(), a:locations)
         if num_of_locations > 0
-            exe 'lopen '.min([g:rtagsMaxSearchResultWindowHeight, num_of_locations]) | set nowrap
+            exe 'lopen '.min([g:rtagsMaxSearchResultWindowHeight, num_of_locations])
         endif
     else
         call setqflist(a:locations)
         if num_of_locations > 0
-            exe 'copen '.min([g:rtagsMaxSearchResultWindowHeight, num_of_locations]) | set nowrap
+            exe 'copen '.min([g:rtagsMaxSearchResultWindowHeight, num_of_locations])
         endif
     endif
 endfunction

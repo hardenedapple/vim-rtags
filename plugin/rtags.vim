@@ -43,18 +43,13 @@ if g:rtagsAutoLaunchRdm
     end
 end
 
-let g:SAME_WINDOW = 'same_window'
-let g:H_SPLIT = 'hsplit'
-let g:V_SPLIT = 'vsplit'
-let g:NEW_TAB = 'tab'
-
 if g:rtagsUseGlobalMappings == 1
   nnoremap <Leader>ri :call rtags#SymbolInfo()<CR>
-  nnoremap <Leader>rj :call rtags#JumpTo(g:SAME_WINDOW)<CR>
-  nnoremap <Leader>rJ :call rtags#JumpTo(g:SAME_WINDOW, { '--declaration-only' : '' })<CR>
-  nnoremap <Leader>rS :call rtags#JumpTo(g:H_SPLIT)<CR>
-  nnoremap <Leader>rV :call rtags#JumpTo(g:V_SPLIT)<CR>
-  nnoremap <Leader>rT :call rtags#JumpTo(g:NEW_TAB)<CR>
+  nnoremap <Leader>rj :call rtags#JumpToSameWindow()<CR>
+  nnoremap <Leader>rJ :call rtags#JumpToSameWindow({ '--declaration-only' : '' })<CR>
+  nnoremap <Leader>rS :call rtags#JumpToHSplit()<CR>
+  nnoremap <Leader>rV :call rtags#JumpToVSplit()<CR>
+  nnoremap <Leader>rT :call rtags#JumpToNewTab()<CR>
   nnoremap <Leader>rp :call rtags#JumpToParent()<CR>
   nnoremap <Leader>rf :call rtags#FindRefs()<CR>
   nnoremap <Leader>rn :call rtags#FindRefsByName(input("Pattern? ", "", "customlist,rtags#CompleteSymbols"))<CR>

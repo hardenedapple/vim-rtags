@@ -16,11 +16,16 @@ if g:rtagsAutoLaunchRdm
     end
 end
 
+let s:SAME_WINDOW = 'same_window'
+let s:H_SPLIT = 'hsplit'
+let s:V_SPLIT = 'vsplit'
+let s:NEW_TAB = 'tab'
+
 let s:LOC_OPEN_OPTS = {
-            \ g:SAME_WINDOW : '',
-            \ g:H_SPLIT : ' ',
-            \ g:V_SPLIT : 'vert',
-            \ g:NEW_TAB : 'tab'
+            \ s:SAME_WINDOW : '',
+            \ s:H_SPLIT : ' ',
+            \ s:V_SPLIT : 'vert',
+            \ s:NEW_TAB : 'tab'
             \ }
 
 """
@@ -280,7 +285,7 @@ function rtags#SymbolInfo()
 endfunction
 
 function rtags#cloneCurrentBuffer(type)
-    if a:type == g:SAME_WINDOW
+    if a:type == s:SAME_WINDOW
         return
     endif
 
@@ -312,7 +317,7 @@ endfunction
 function rtags#JumpToHandler(results, args)
     let results = a:results
     let open_opt = a:args['open_opt']
-    if len(results) >= 0 && open_opt != g:SAME_WINDOW
+    if len(results) >= 0 && open_opt != s:SAME_WINDOW
         call rtags#cloneCurrentBuffer(open_opt)
     endif
 
@@ -335,23 +340,35 @@ endfunction
 " JumpTo(open_type, ...)
 "     open_type - Vim command used for opening desired location.
 "     Allowed values:
-"       * g:SAME_WINDOW
-"       * g:H_SPLIT
-"       * g:V_SPLIT
-"       * g:NEW_TAB
+"       * s:SAME_WINDOW
+"       * s:H_SPLIT
+"       * s:V_SPLIT
+"       * s:NEW_TAB
 "
 "     a:1 - dictionary of additional arguments for 'rc'
 "
-function rtags#JumpTo(open_opt, ...)
+function rtags#JumpTo(open_opt, args_list)
     let args = {}
-    if a:0 > 0
-        let args = a:1
+    if len(a:args_list) > 0
+        let args = a:args_list[0]
     endif
-
     call extend(args, { '-f' : rtags#getCurrentLocation() })
     let results = rtags#ExecuteThen(args, [[function('rtags#JumpToHandler'), { 'open_opt' : a:open_opt }]])
-
 endfunction
+
+function rtags#JumpToSameWindow(...)
+  call rtags#JumpTo(s:SAME_WINDOW, a:000)
+endfunction
+function rtags#JumpToHSplit(...)
+  call rtags#JumpTo(s:H_SPLIT, a:000)
+endfunction
+function rtags#JumpToVSplit(...)
+  call rtags#JumpTo(s:V_SPLIT, a:000)
+endfunction
+function rtags#JumpToNewTab(...)
+  call rtags#JumpTo(s:NEW_TAB, a:000)
+endfunction
+
 
 function rtags#parseSourceLocation(string)
     let [location; symbol_detail] = split(a:string, '\s\+')
@@ -568,6 +585,7 @@ function rtags#ExecuteHandlers(output, handlers)
     endfor 
 endfunction
 
+echom 'Defining ExecuteThen'
 function rtags#ExecuteThen(args, handlers)
     if s:rtagsAsync == 1
         call rtags#ExecuteRCAsync(a:args, a:handlers)

@@ -3,11 +3,11 @@ if !get(g:, "rtagsActiveFiletypes", 0) || index(g:rtagsActiveFiletypes, &filetyp
   " mappings are defined.
   if get(g:, 'rtagsUseDefaultMappings', !g:rtagsUseGlobalMappings)
     nnoremap <buffer> <LocalLeader>ri :call rtags#SymbolInfo()<CR>
-    nnoremap <buffer> <LocalLeader>rj :call rtags#JumpTo(g:SAME_WINDOW)<CR>
-    nnoremap <buffer> <LocalLeader>rJ :call rtags#JumpTo(g:SAME_WINDOW, { '--declaration-only' : '' })<CR>
-    nnoremap <buffer> <LocalLeader>rS :call rtags#JumpTo(g:H_SPLIT)<CR>
-    nnoremap <buffer> <LocalLeader>rV :call rtags#JumpTo(g:V_SPLIT)<CR>
-    nnoremap <buffer> <LocalLeader>rT :call rtags#JumpTo(g:NEW_TAB)<CR>
+    nnoremap <buffer> <LocalLeader>rj :call rtags#JumpToSameWindow()<CR>
+    nnoremap <buffer> <LocalLeader>rJ :call rtags#JumpToSameWindow({ '--declaration-only' : '' })<CR>
+    nnoremap <buffer> <LocalLeader>rS :call rtags#JumpToHSplit()<CR>
+    nnoremap <buffer> <LocalLeader>rV :call rtags#JumpToVSplit()<CR>
+    nnoremap <buffer> <LocalLeader>rT :call rtags#JumpToNewTab()<CR>
     nnoremap <buffer> <LocalLeader>rp :call rtags#JumpToParent()<CR>
     nnoremap <buffer> <LocalLeader>rf :call rtags#FindRefs()<CR>
     nnoremap <buffer> <LocalLeader>rn :call rtags#FindRefsByName(input("Pattern? ", "", "customlist,rtags#CompleteSymbols"))<CR>

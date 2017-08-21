@@ -223,22 +223,8 @@ endfunction
 " param[in] args - dictionary of arguments
 "-
 " return output split by newline
-function rtags#ExecuteRC(args)
-    let cmd = rtags#getRcCmd()
-
-    " Give rdm unsaved file content, so that you don't have to save files
-    " before each rc invocation.
-    call s:update_content_cache(cmd)
-
-    " prepare for the actual command invocation
-    for [key, value] in items(a:args)
-        let cmd .= " ".key
-        if len(value) > 1
-            let cmd .= " ".value
-        endif
-    endfor
-
-    let output = system(cmd)
+function rtags#ExecuteRC(cmd)
+    let output = system(a:cmd)
     if v:shell_error && len(output) > 0
         let output = substitute(output, '\n', '', '')
         echohl ErrorMsg | echomsg "[vim-rtags] Error: " . output | echohl None
@@ -290,27 +276,13 @@ function rtags#HandleResults(job_id, data, event)
     endif
 endfunction
 
-function rtags#ExecuteRCAsync(args, handlers)
-    let cmd = rtags#getRcCmd()
-
-    " Give rdm unsaved file content, so that you don't have to save files
-    " before each rc invocation.
-    call s:update_content_cache(cmd)
-
-    " prepare for the actual command invocation
-    for [key, value] in items(a:args)
-        let cmd .= " ".key
-        if len(value) > 1
-            let cmd .= " ".value
-        endif
-    endfor
-
+function rtags#ExecuteRCAsync(cmd, handlers)
     let s:callbacks = { 'on_exit' : function('rtags#HandleResults') }
 
     let s:job_cid = s:job_cid + 1
     " should have out+err redirection portable for various shells.
     if has('nvim')
-        let cmd = cmd . '>& ' . rtags#TempFile(s:job_cid)
+        let cmd = a:cmd . '>& ' . rtags#TempFile(s:job_cid)
         let job = jobstart(cmd, s:callbacks)
         let s:jobs[job] = s:job_cid
         let s:result_handlers[job] = a:handlers
@@ -320,7 +292,7 @@ function rtags#ExecuteRCAsync(args, handlers)
         let l:opts.out_cb = {ch, data -> rtags#HandleResults(ch_info(ch).id, data, 'vim_stdout')}
         let l:opts.exit_cb = {ch, data -> rtags#HandleResults(ch_info(ch).id, data,'vim_exit')}
         let l:opts.stoponexit = 'kill'
-        let job = job_start(cmd, l:opts)
+        let job = job_start(a:cmd, l:opts)
         let channel = ch_info(job_getchannel(job)).id
         let s:result_stdout[channel] = []
         let s:jobs[channel] = s:job_cid
@@ -331,12 +303,26 @@ endfunction
 " }}}
 
 function rtags#ExecuteThen(args, handlers)
-    if s:rtagsAsync == 1
-        call rtags#ExecuteRCAsync(a:args, a:handlers)
-    else
-        let result = rtags#ExecuteRC(a:args)
-        call rtags#ExecuteHandlers(result, a:handlers)
+  let cmd = rtags#getRcCmd()
+
+  " Give rdm unsaved file content, so that you don't have to save files
+  " before each rc invocation.
+  call s:update_content_cache(cmd)
+
+  " prepare for the actual command invocation
+  for [key, value] in items(a:args)
+    let cmd .= " ".key
+    if len(value) > 1
+      let cmd .= " ".value
     endif
+  endfor
+
+  if s:rtagsAsync == 1
+    call rtags#ExecuteRCAsync(cmd, a:handlers)
+  else
+    let result = rtags#ExecuteRC(cmd)
+    call rtags#ExecuteHandlers(result, a:handlers)
+  endif
 endfunction
 " }}}
 

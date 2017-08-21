@@ -257,23 +257,28 @@ endfunction
 
 " Async {{{
 function rtags#HandleResults(job_id, data, event)
-    if a:event == 'vim_stdout'
-        call add(s:result_stdout[a:job_id], a:data)
-    elseif a:event == 'vim_exit'
+  if a:event == 'vim_stdout'
+    call add(s:result_stdout[a:job_id], a:data)
+    return
+  endif
 
-        let job_cid = remove(s:jobs, a:job_id)
-        let handlers = remove(s:result_handlers, a:job_id)
-        let output = remove(s:result_stdout, a:job_id)
+  let job_cid = remove(s:jobs, a:job_id)
+  let handlers = remove(s:result_handlers, a:job_id)
 
-        call rtags#ExecuteHandlers(output, handlers)
-    else
-        let job_cid = remove(s:jobs, a:job_id)
-        let temp_file = rtags#TempFile(job_cid)
-        let output = readfile(temp_file)
-        let handlers = remove(s:result_handlers, a:job_id)
-        call rtags#ExecuteHandlers(output, handlers)
-        execute 'silent !rm -f ' . temp_file
-    endif
+  " The event is exit (because the only events we register this function under
+  " are 'vim_stdout', 'vim_exit', and 'exit') we now need to distinguish
+  " between vim exit and neovim exit.
+  if a:event == 'vim_exit'
+    let output = remove(s:result_stdout, a:job_id)
+    call rtags#ExecuteHandlers(output, handlers)
+  elseif a:event == 'exit'
+    let temp_file = rtags#TempFile(job_cid)
+    let output = readfile(temp_file)
+    call rtags#ExecuteHandlers(output, handlers)
+    execute 'silent !rm -f ' . temp_file
+  else
+    echoerr 'rtags#HandleResults() called with unexpected event: ' . a:event
+  endif
 endfunction
 
 function rtags#ExecuteRCAsync(cmd, handlers)

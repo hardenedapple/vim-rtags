@@ -310,17 +310,13 @@ function rtags#ExecuteThen(args, handlers)
   call s:update_content_cache(cmd)
 
   " prepare for the actual command invocation
-  for [key, value] in items(a:args)
-    let cmd .= " ".key
-    if len(value) > 1
-      let cmd .= " ".value
-    endif
-  endfor
+  let arguments = map(items(a:args), { key, val -> val[0] . ' ' . val[1] })
+  let full_cmd = cmd . ' ' . join(arguments, ' ')
 
   if s:rtagsAsync == 1
-    call rtags#ExecuteRCAsync(cmd, a:handlers)
+    call rtags#ExecuteRCAsync(full_cmd, a:handlers)
   else
-    let result = rtags#ExecuteRC(cmd)
+    let result = rtags#ExecuteRC(full_cmd)
     call rtags#ExecuteHandlers(result, a:handlers)
   endif
 endfunction

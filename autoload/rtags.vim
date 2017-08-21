@@ -575,27 +575,10 @@ function rtags#JumpToNewTab(...)
   call rtags#JumpTo(s:NEW_TAB, a:000)
 endfunction
 
-function rtags#JumpToParentHandler(results)
-    let results = a:results
-    for line in results
-        let matched = matchend(line, "^Parent: ")
-        if matched == -1
-            continue
-        endif
-        let [jump_file, lnum, col] = rtags#parseSourceLocation(line[matched:-1])
-        if !empty(jump_file)
-            if a:0 > 0
-                call rtags#cloneCurrentBuffer(a:1)
-            endif
-
-            " Add location to the jumplist
-            normal! m'
-            if rtags#jumpToLocation(jump_file, lnum, col)
-                normal! zz
-            endif
-            return
-        endif
-    endfor
+function rtags#JumpToParentHandler(results, ...)
+  let rgx = '^Parent: '
+  let results = filter(a:results, 'matchend(v:val, rgx) != -1')
+  call rtags#JumpToHandler(map(results, 'substitute(v:val, rgx, "", "")'), { 'open_opt': s:SAME_WINDOW } )
 endfunction
 
 function rtags#JumpToParent(...)

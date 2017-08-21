@@ -181,6 +181,39 @@ endfunction
 
 " Execution {{{
 
+function s:cache_valid()
+  if !&modified
+    return v:true
+  endif
+
+  " Only read contents of the buffer if we know the buffer has changed since we
+  " last read it.
+  if get(b:, 'rtags_change_tick', -1) == b:changedtick
+    return v:true
+  endif
+  let b:rtags_change_tick = b:changedtick
+  return v:false
+endfunction
+
+function s:update_content_cache(rc_cmd)
+  if s:cache_valid()
+    return
+  endif
+  let to_send = join(getline(1, line('$')), "\n")
+  let filename = expand("%")
+  " Decrease by one for the number of bytes in the buffer
+  " Decrease by one more because strlen(b:rtags_cur_content) is one less
+  " than the number of bytes in the file.
+  " This is because it never includes the trailing newline at the end of
+  " the last line, while line2byte() always does (whether there is a
+  " trailing newline or not).
+  let buffer_bytes = line2byte(line('$') + 1) - 2
+  let send_contents_cmd = printf("%s --wait --unsaved-file=%s:%s -V %s", a:rc_cmd, filename, buffer_bytes, filename)
+  let output = system(send_contents_cmd, to_send)
+  let b:rtags_sent_content = to_send
+endfunction
+
+
 "
 " Executes rc with given arguments and returns rc output
 "
@@ -192,19 +225,7 @@ function rtags#ExecuteRC(args)
 
     " Give rdm unsaved file content, so that you don't have to save files
     " before each rc invocation.
-    if exists('b:rtags_sent_content')
-        let content = join(getline(1, line('$')), "\n")
-        if b:rtags_sent_content != content
-            let unsaved_content = content
-        endif
-    elseif &modified
-        let unsaved_content = join(getline(1, line('$')), "\n")
-    endif
-    if exists('unsaved_content')
-        let filename = expand("%")
-        let output = system(printf("%s --wait --unsaved-file=%s:%s -V %s", cmd, filename, strlen(unsaved_content), filename), unsaved_content)
-        let b:rtags_sent_content = unsaved_content
-    endif
+    call s:update_content_cache(cmd)
 
     " prepare for the actual command invocation
     for [key, value] in items(a:args)
@@ -247,8 +268,6 @@ endfunction
 
 " Async {{{
 function rtags#HandleResults(job_id, data, event)
-
-
     if a:event == 'vim_stdout'
         call add(s:result_stdout[a:job_id], a:data)
     elseif a:event == 'vim_exit'
@@ -266,7 +285,6 @@ function rtags#HandleResults(job_id, data, event)
         call rtags#ExecuteHandlers(output, handlers)
         execute 'silent !rm -f ' . temp_file
     endif
-
 endfunction
 
 function rtags#ExecuteRCAsync(args, handlers)
@@ -274,19 +292,7 @@ function rtags#ExecuteRCAsync(args, handlers)
 
     " Give rdm unsaved file content, so that you don't have to save files
     " before each rc invocation.
-    if exists('b:rtags_sent_content')
-        let content = join(getline(1, line('$')), "\n")
-        if b:rtags_sent_content != content
-            let unsaved_content = content
-        endif
-    elseif &modified
-        let unsaved_content = join(getline(1, line('$')), "\n")
-    endif
-    if exists('unsaved_content')
-        let filename = expand("%")
-        let output = system(printf("%s --wait --unsaved-file=%s:%s -V %s", cmd, filename, strlen(unsaved_content), filename), unsaved_content)
-        let b:rtags_sent_content = unsaved_content
-    endif
+    call s:update_content_cache(cmd)
 
     " prepare for the actual command invocation
     for [key, value] in items(a:args)
@@ -577,7 +583,7 @@ function rtags#JumpToParentHandler(results, ...)
   call rtags#JumpToHandler(map(results, 'substitute(v:val, rgx, "", "")'), { 'open_opt': s:SAME_WINDOW } )
 endfunction
 
-function rtags#JumpToParent(...)
+function rtags#JumpToParent()
     let args = {
                 \ '-U' : rtags#getCurrentLocation(),
                 \ '--symbol-info-include-parents' : '' }

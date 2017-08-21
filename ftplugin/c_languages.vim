@@ -3,7 +3,7 @@ if empty(get(g:, "rtagsActiveFiletypes", [])) || index(g:rtagsActiveFiletypes, &
   " Start the rtags daemon automatically if the user wants.
   if get(g:, 'rtagsAutoLaunchRdm', 0) && !get(g:, 'rtagsDaemonStarted', 0)
       call system(g:rtagsRcCmd." -w")
-      if v:shell_error != 0 
+      if v:shell_error != 0
         let rdm = get(g:, 'rtagsRdmCmd', 'rdm')
         call system(rdm." --daemon > /dev/null")
       end

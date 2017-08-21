@@ -60,14 +60,6 @@ function rtags#ExistsAndCreateRtagsState()
 endfunction
 " }}}
 
-" Only load this when the different
-if g:rtagsAutoLaunchRdm
-    call system(g:rtagsRcCmd." -w")
-    if v:shell_error != 0 
-        call system(g:rtagsRdmCmd." --daemon > /dev/null")
-    end
-end
-
 let s:SAME_WINDOW = 'same_window'
 let s:H_SPLIT = 'hsplit'
 let s:V_SPLIT = 'vsplit'

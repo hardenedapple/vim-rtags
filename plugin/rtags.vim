@@ -6,10 +6,6 @@ if !exists("g:rtagsRdmCmd")
     let g:rtagsRdmCmd = "rdm"
 endif
 
-if !exists("g:rtagsAutoLaunchRdm")
-    let g:rtagsAutoLaunchRdm = 0
-endif
-
 if !exists("g:rtagsJumpStackMaxSize")
     let g:rtagsJumpStackMaxSize = 100
 endif
@@ -35,13 +31,6 @@ endif
 if !exists("g:rtagsMaxSearchResultWindowHeight")
     let g:rtagsMaxSearchResultWindowHeight = 10
 endif
-
-if g:rtagsAutoLaunchRdm
-    call system(g:rtagsRcCmd." -w")
-    if v:shell_error != 0 
-        call system(g:rtagsRdmCmd." --daemon > /dev/null")
-    end
-end
 
 let g:rtagsDefaultMappings = [
   \ ['ri', " :call rtags#SymbolInfo()<CR>"],

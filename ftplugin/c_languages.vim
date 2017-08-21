@@ -1,4 +1,4 @@
-if !get(g:, "rtagsActiveFiletypes", 0) || index(g:rtagsActiveFiletypes, &filetype) != -1
+if empty(get(g:, "rtagsActiveFiletypes", [])) || index(g:rtagsActiveFiletypes, &filetype) != -1
 
   " Start the rtags daemon automatically if the user wants.
   if get(g:, 'rtagsAutoLaunchRdm', 0) && !get(g:, 'rtagsDaemonStarted', 0)

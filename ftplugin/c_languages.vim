@@ -4,7 +4,8 @@ if !get(g:, "rtagsActiveFiletypes", 0) || index(g:rtagsActiveFiletypes, &filetyp
   if get(g:, 'rtagsAutoLaunchRdm', 0) && !get(g:, 'rtagsDaemonStarted', 0)
       call system(g:rtagsRcCmd." -w")
       if v:shell_error != 0 
-          call system(g:rtagsRdmCmd." --daemon > /dev/null")
+        let rdm = get(g:, 'rtagsRdmCmd', 'rdm')
+        call system(rdm." --daemon > /dev/null")
       end
       " Only start it once.
       let g:rtagsDaemonStarted = 1

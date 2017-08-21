@@ -91,7 +91,7 @@ endfunction
 function rtags#getRcCmd()
     let cmd = g:rtagsRcCmd
     let cmd .= " --absolute-path "
-    if g:rtagsExcludeSysHeaders == 1
+    if get(g:, 'rtagsExcludeSysHeaders', 0)
         return cmd." -H "
     endif
     return cmd
@@ -405,15 +405,16 @@ endfunction
 "
 function rtags#DisplayLocations(locations)
     let num_of_locations = len(a:locations)
-    if g:rtagsUseLocationList == 1
+    let max_height = get(g:, 'rtagsMaxSearchResultWindowHeight', 10)
+    if get(g:, 'rtagsUseLocationList', 1)
         call setloclist(winnr(), a:locations)
         if num_of_locations > 0
-            exe 'lopen '.min([g:rtagsMaxSearchResultWindowHeight, num_of_locations])
+            exe 'lopen '.min([max_height, num_of_locations])
         endif
     else
         call setqflist(a:locations)
         if num_of_locations > 0
-            exe 'copen '.min([g:rtagsMaxSearchResultWindowHeight, num_of_locations])
+            exe 'copen '.min([max_height, num_of_locations])
         endif
     endif
 endfunction
@@ -486,7 +487,7 @@ endfunction
 " {{{ JumpTo
 function rtags#saveLocation()
     let jumpListLen = len(g:rtagsJumpStack) 
-    if jumpListLen > g:rtagsJumpStackMaxSize
+    if jumpListLen > get(g:, 'rtagsJumpStackMaxSize', 100)
         call remove(g:rtagsJumpStack, 0)
     endif
     let [lnum, col] = getpos('.')[1:2]
@@ -702,7 +703,7 @@ endfunction
 
 " Method for tab-completion for vim's commands
 function rtags#CompleteSymbols(arg, line, pos)
-    if len(a:arg) < g:rtagsMinCharsForCommandCompletion
+    if len(a:arg) < get(g:, 'rtagsMinCharsForCommandCompletion', 4)
         return []
     endif
     call rtags#ExecuteThen({ '-S' : a:arg }, [function('filter')])

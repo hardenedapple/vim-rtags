@@ -2,34 +2,10 @@ if !exists("g:rtagsRcCmd")
     let g:rtagsRcCmd = "rc"
 endif
 
-if !exists("g:rtagsRdmCmd")
-    let g:rtagsRdmCmd = "rdm"
-endif
-
-if !exists("g:rtagsJumpStackMaxSize")
-    let g:rtagsJumpStackMaxSize = 100
-endif
-
-if !exists("g:rtagsExcludeSysHeaders")
-    let g:rtagsExcludeSysHeaders = 0
-endif
-
 let g:rtagsJumpStack = []
-
-if !exists("g:rtagsUseLocationList")
-    let g:rtagsUseLocationList = 1
-endif
 
 if !exists("g:rtagsUseGlobalMappings")
     let g:rtagsUseGlobalMappings = 1
-endif
-
-if !exists("g:rtagsMinCharsForCommandCompletion")
-    let g:rtagsMinCharsForCommandCompletion = 4
-endif
-
-if !exists("g:rtagsMaxSearchResultWindowHeight")
-    let g:rtagsMaxSearchResultWindowHeight = 10
 endif
 
 let g:rtagsDefaultMappings = [

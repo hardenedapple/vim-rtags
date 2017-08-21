@@ -66,19 +66,13 @@ let s:V_SPLIT = 'vsplit'
 let s:NEW_TAB = 'tab'
 
 let s:LOC_OPEN_OPTS = {
-            \ s:SAME_WINDOW : '',
-            \ s:H_SPLIT : '',
-            \ s:V_SPLIT : 'vert',
-            \ s:NEW_TAB : 'tab'
+            \ s:SAME_WINDOW : 'edit ',
+            \ s:H_SPLIT : 'split ',
+            \ s:V_SPLIT : 'vsplit ',
+            \ s:NEW_TAB : 'tabedit '
             \ }
 
 " Utils {{{
-function rtags#cloneCurrentBuffer(type)
-    if a:type != s:SAME_WINDOW
-      exec s:LOC_OPEN_OPTS[a:type]." split"
-    endif
-endfunction
-
 """
 " Logging routine
 """
@@ -102,19 +96,23 @@ function rtags#getCurrentLocation()
     return printf("%s:%s:%s", expand("%"), lnum, col)
 endfunction
 
-function rtags#jumpToLocationInternal(file, line, col)
-    try
-        if a:file != expand("%:p")
-            exe "e ".a:file
-        endif
-        call cursor(a:line, a:col)
-        return 1
-    catch /.*/
-        echohl ErrorMsg
-        echomsg v:exception
-        echohl None
-        return 0
-    endtry
+function rtags#jumpToLocationInternal(open_opt, file, line, col)
+  try
+    " Avoid calling :edit <cfile>  ... just for efficiency.
+    " Part of me wants to do `exe s:LOC_OPEN_OPTS[a:open_opt]'+'.a:line.' '.a:file`
+    " but seeing as we need to set the column anyway, and we're avoiding using
+    " :edit when not needed for efficiency it's silly.
+    if open_opt != s:SAME_WINDOW || a:file != expand("%:p")
+      exe s:LOC_OPEN_OPTS[a:open_opt].a:file
+    endif
+    call cursor(a:line, a:col)
+    return 1
+  catch /.*/
+    echohl ErrorMsg
+    echomsg v:exception
+    echohl None
+    return 0
+  endtry
 endfunction
 
 function rtags#CreateProject()
@@ -494,19 +492,26 @@ function rtags#saveLocation()
     call add(g:rtagsJumpStack, [expand("%"), lnum, col])
 endfunction
 
-function rtags#jumpToLocation(file, line, col)
-    call rtags#saveLocation()
-    return rtags#jumpToLocationInternal(a:file, a:line, a:col)
-endfunction
-
 function rtags#JumpToHandler(results, args)
     let results = a:results
-    let open_opt = a:args['open_opt']
-    if len(results) >= 0 && open_opt != s:SAME_WINDOW
-        call rtags#cloneCurrentBuffer(open_opt)
-    endif
 
     if len(results) > 1
+      " At the moment I don't know when this is ever possible.
+      " We use this function in rtags#JumpToParentHandler(), and
+      " rtags#JumpTo().
+      " In rtags#JumpToParentHandler() we only pass this function the line
+      " starting with 'Parent:' in the symbol-info from rtags.
+      "   As far as I know this is only ever one line.
+      "
+      " In rtags#JumpTo() we call this function with the lines from 
+      " `rc -f <location>`.
+      "   Again, this is only ever one line.
+      "
+      " It's perfectly possible that I'm missing something, so leave the
+      " original functionality, but get a message when it happens.
+      echom 'Have results longer than one element!!'
+      echom 'This is unexpected ... the elements are:'
+      echom string(results)
       call rtags#DisplayResults(results)
     elseif len(results) == 1
       let [jump_file, lnum, col] = rtags#parseSourceLocation(results[0])
@@ -519,7 +524,9 @@ function rtags#JumpToHandler(results, args)
 
       " Add location to the jumplist
       normal! m'
-      if rtags#jumpToLocation(jump_file, lnum, col)
+      call rtags#saveLocation()
+      let open_opt = a:args['open_opt']
+      if rtags#jumpToLocationInternal(open_opt, jump_file, lnum, col)
         normal! zz
       endif
     endif
@@ -587,7 +594,7 @@ function rtags#RenameSymbolUnderCursorHandler(output)
   let replace_symbol = -1
   if !empty(newName)
     for loc in reverse(locations)
-      if !rtags#jumpToLocationInternal(loc.filepath, loc.lnum, loc.col)
+      if !rtags#jumpToLocationInternal(s:SAME_WINDOW, loc.filepath, loc.lnum, loc.col)
         return
       endif
       normal! zv

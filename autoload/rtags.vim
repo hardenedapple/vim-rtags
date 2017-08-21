@@ -75,20 +75,16 @@ let s:NEW_TAB = 'tab'
 
 let s:LOC_OPEN_OPTS = {
             \ s:SAME_WINDOW : '',
-            \ s:H_SPLIT : ' ',
+            \ s:H_SPLIT : '',
             \ s:V_SPLIT : 'vert',
             \ s:NEW_TAB : 'tab'
             \ }
 
 " Utils {{{
 function rtags#cloneCurrentBuffer(type)
-    if a:type == s:SAME_WINDOW
-        return
+    if a:type != s:SAME_WINDOW
+      exec s:LOC_OPEN_OPTS[a:type]." split"
     endif
-
-    let [lnum, col] = getpos('.')[1:2]
-    exec s:LOC_OPEN_OPTS[a:type]." new ".expand("%")
-    call cursor(lnum, col)
 endfunction
 
 """

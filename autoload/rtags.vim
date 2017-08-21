@@ -200,6 +200,9 @@ function s:update_content_cache(rc_cmd)
     return
   endif
   let to_send = join(getline(1, line('$')), "\n")
+  if get(b:, 'rtags_sent_content', []) == to_send
+    return
+  endif
   let filename = expand("%")
   " Decrease by one for the number of bytes in the buffer
   " Decrease by one more because strlen(b:rtags_cur_content) is one less

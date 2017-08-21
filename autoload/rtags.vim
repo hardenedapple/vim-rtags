@@ -588,13 +588,13 @@ function rtags#JumpToParent(...)
 
     call rtags#ExecuteThen(args, [function('rtags#JumpToParentHandler')])
 endfunction
-
-function s:GetCharacterUnderCursor()
-    return matchstr(getline('.'), '\%' . col('.') . 'c.')
-endfunction
 " }}}
 
 " RenameSymbol {{{
+function s:GetCharacterUnderCursor()
+    return matchstr(getline('.'), '\%' . col('.') . 'c.')
+endfunction
+
 function rtags#RenameSymbolUnderCursorHandler(output)
     let locations = rtags#ParseResults(a:output)
     if len(locations) > 0

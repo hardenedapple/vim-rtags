@@ -43,25 +43,31 @@ if g:rtagsAutoLaunchRdm
     end
 end
 
+let g:rtagsDefaultMappings = [
+  \ ['ri', " :call rtags#SymbolInfo()<CR>"],
+  \ ['rj', " :call rtags#JumpToSameWindow()<CR>"],
+  \ ['rJ', " :call rtags#JumpToSameWindow({ '--declaration-only' : '' })<CR>"],
+  \ ['rS', " :call rtags#JumpToHSplit()<CR>"],
+  \ ['rV', " :call rtags#JumpToVSplit()<CR>"],
+  \ ['rT', " :call rtags#JumpToNewTab()<CR>"],
+  \ ['rp', " :call rtags#JumpToParent()<CR>"],
+  \ ['rf', " :call rtags#FindRefs()<CR>"],
+  \ ['rn', " :call rtags#FindRefsByName(input('Pattern? ', '', 'customlist,rtags#CompleteSymbols'))<CR>"],
+  \ ['rs', " :call rtags#FindSymbols(input('Pattern? ', '', 'customlist,rtags#CompleteSymbols'))<CR>"],
+  \ ['rr', " :call rtags#ReindexFile()<CR>"],
+  \ ['rl', " :call rtags#ProjectList()<CR>"],
+  \ ['rw', " :call rtags#RenameSymbolUnderCursor()<CR>"],
+  \ ['rv', " :call rtags#FindVirtuals()<CR>"],
+  \ ['rb', " :call rtags#JumpBack()<CR>"],
+  \ ['rC', " :call rtags#FindSuperClasses()<CR>"],
+  \ ['rc', " :call rtags#FindSubClasses()<CR>"],
+  \ ['rd', " :call rtags#Diagnostics()<CR>"],
+  \ ]
+
 if g:rtagsUseGlobalMappings == 1
-  nnoremap <silent> <Leader>ri :call rtags#SymbolInfo()<CR>
-  nnoremap <silent> <Leader>rj :call rtags#JumpToSameWindow()<CR>
-  nnoremap <silent> <Leader>rJ :call rtags#JumpToSameWindow({ '--declaration-only' : '' })<CR>
-  nnoremap <silent> <Leader>rS :call rtags#JumpToHSplit()<CR>
-  nnoremap <silent> <Leader>rV :call rtags#JumpToVSplit()<CR>
-  nnoremap <silent> <Leader>rT :call rtags#JumpToNewTab()<CR>
-  nnoremap <silent> <Leader>rp :call rtags#JumpToParent()<CR>
-  nnoremap <silent> <Leader>rf :call rtags#FindRefs()<CR>
-  nnoremap <silent> <Leader>rn :call rtags#FindRefsByName(input("Pattern? ", "", "customlist,rtags#CompleteSymbols"))<CR>
-  nnoremap <silent> <Leader>rs :call rtags#FindSymbols(input("Pattern? ", "", "customlist,rtags#CompleteSymbols"))<CR>
-  nnoremap <silent> <Leader>rr :call rtags#ReindexFile()<CR>
-  nnoremap <silent> <Leader>rl :call rtags#ProjectList()<CR>
-  nnoremap <silent> <Leader>rw :call rtags#RenameSymbolUnderCursor()<CR>
-  nnoremap <silent> <Leader>rv :call rtags#FindVirtuals()<CR>
-  nnoremap <silent> <Leader>rb :call rtags#JumpBack()<CR>
-  nnoremap <silent> <Leader>rC :call rtags#FindSuperClasses()<CR>
-  nnoremap <silent> <Leader>rc :call rtags#FindSubClasses()<CR>
-  nnoremap <silent> <Leader>rd :call rtags#Diagnostics()<CR>
+  for [trigger, expansion] in g:rtagsDefaultMappings
+    execute 'nnoremap <silent> <Leader>' . trigger . expansion
+  endfor
 endif
 
 command -nargs=1 -complete=customlist,rtags#CompleteSymbols RtagsFindSymbols call rtags#FindSymbols(<q-args>)

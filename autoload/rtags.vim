@@ -522,22 +522,27 @@ function rtags#JumpToHandler(results, args)
     endif
 
     if len(results) > 1
-        call rtags#DisplayResults(results)
+      call rtags#DisplayResults(results)
     elseif len(results) == 1
-        let [location; symbol_detail] = split(results[0], '\s\+')
-        let [jump_file, lnum, col; rest] = split(location, ':')
+      let [jump_file, lnum, col] = rtags#parseSourceLocation(results[0])
+      if jump_file == ""
+        " Usually the problem is that the user forgot to start the server.
+        " Account for the general case and just print the servers message.
+        echom 'Invalid result back from server: ' . results[0]
+        return
+      endif
 
-        " Add location to the jumplist
-        normal! m'
-        if rtags#jumpToLocation(jump_file, lnum, col)
-            normal! zz
-        endif
+      " Add location to the jumplist
+      normal! m'
+      if rtags#jumpToLocation(jump_file, lnum, col)
+        normal! zz
+      endif
     endif
 
 endfunction
 
 "
-" JumpTo(open_type, ...)
+" JumpTo(open_type, args_list)
 "     open_type - Vim command used for opening desired location.
 "     Allowed values:
 "       * s:SAME_WINDOW
@@ -545,7 +550,8 @@ endfunction
 "       * s:V_SPLIT
 "       * s:NEW_TAB
 "
-"     a:1 - dictionary of additional arguments for 'rc'
+"     args_list - Either empty list or list of one dictionary of additional
+"                 arguments for 'rc'
 "
 function rtags#JumpTo(open_opt, args_list)
     let args = {}

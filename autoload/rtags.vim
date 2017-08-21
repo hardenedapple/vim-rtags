@@ -583,46 +583,51 @@ endfunction
 " }}}
 
 " RenameSymbol {{{
-function s:GetCharacterUnderCursor()
-    return matchstr(getline('.'), '\%' . col('.') . 'c.')
-endfunction
-
 function rtags#RenameSymbolUnderCursorHandler(output)
-    let locations = rtags#ParseResults(a:output)
-    if len(locations) > 0
-        let newName = input("Enter new name: ")
-        let yesToAll = 0
-        if !empty(newName)
-            for loc in reverse(locations)
-                if !rtags#jumpToLocationInternal(loc.filepath, loc.lnum, loc.col)
-                    return
-                endif
-                normal! zv
-                normal! zz
-                redraw
-                let choice = yesToAll
-                if choice == 0
-                    let location = loc.filepath.":".loc.lnum.":".loc.col
-                    let choices = "&Yes\nYes to &All\n&No\n&Cancel"
-                    let choice = confirm("Rename symbol at ".location, choices)
-                endif
-                if choice == 2
-                    let choice = 1
-                    let yesToAll = 1
-                endif
-                if choice == 1
-                    " Special case for destructors
-                    if s:GetCharacterUnderCursor() == '~'
-                        normal! l
-                    endif
-                    exec "normal! ciw".newName."\<Esc>"
-                    write!
-                elseif choice == 4
-                    return
-                endif
-            endfor
+  let locations = rtags#ParseResults(a:output)
+  if len(locations) == 0
+    return
+  endif
+
+  let newName = input("Enter new name: ")
+  let yesToAll = 0
+  let replace_symbol = -1
+  if !empty(newName)
+    for loc in reverse(locations)
+      if !rtags#jumpToLocationInternal(loc.filepath, loc.lnum, loc.col)
+        return
+      endif
+      normal! zv
+      normal! zz
+      redraw
+      let choice = yesToAll
+      if choice == 0
+        let location = loc.filepath.":".loc.lnum.":".loc.col
+        let choices = "&Yes\nYes to &All\n&No\n&Cancel"
+        let choice = confirm("Rename symbol at ".location, choices)
+      endif
+      if choice == 2
+        let choice = 1
+        let yesToAll = 1
+      endif
+      if choice == 1
+        let curline = getline('.')
+        let start_char = matchstr(curline, '\%' . loc.col . 'c.')
+        " Special case for destructors (RTags column number is on the ~)
+        let change_col = start_char == '~' ? loc.col : loc.col - 1
+        let before_text = strpart(curline, 0, change_col)
+        let after_text = strpart(curline, change_col)
+        if replace_symbol == -1
+          " Pattern chosen to simulate 'normal! ciw' from the original code.
+          let replace_symbol = matchstr(after_text, '\w\+')
         endif
-    endif
+        let new_end = substitute(after_text, replace_symbol, newName, '')
+        call setline('.', before_text . new_end)
+      elseif choice == 4
+        return
+      endif
+    endfor
+  endif
 endfunction
 
 function rtags#RenameSymbolUnderCursor()

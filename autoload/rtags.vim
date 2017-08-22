@@ -60,17 +60,17 @@ function rtags#ExistsAndCreateRtagsState()
 endfunction
 " }}}
 
-let s:SAME_WINDOW = 'same_window'
-let s:H_SPLIT = 'hsplit'
-let s:V_SPLIT = 'vsplit'
-let s:NEW_TAB = 'tab'
+let s:SAME_WINDOW = 'edit '
+let s:H_SPLIT = 'split '
+let s:V_SPLIT = 'vsplit '
+let s:NEW_TAB = 'tabedit '
 
-let s:LOC_OPEN_OPTS = {
-            \ s:SAME_WINDOW : 'edit ',
-            \ s:H_SPLIT : 'split ',
-            \ s:V_SPLIT : 'vsplit ',
-            \ s:NEW_TAB : 'tabedit '
-            \ }
+let s:OPEN_LOADED = {
+      \ s:SAME_WINDOW : 'buffer ',
+      \ s:H_SPLIT : 'sbuffer ',
+      \ s:V_SPLIT : 'vert sbuffer ',
+      \ s:NEW_TAB : 'tab sbuffer ',
+      \ }
 
 " Utils {{{
 """
@@ -96,15 +96,24 @@ function rtags#getCurrentLocation()
     return printf("%s:%s:%s", expand("%"), lnum, col)
 endfunction
 
+function rtags#goToFile(open_opt, file)
+  " Avoid calling :edit / :split etc if the buffer is already loaded.
+  " This is a noticeable efficiency gain.
+  let curfile = expand('%:p')
+  if a:open_opt == s:SAME_WINDOW && a:file == curfile
+    return
+  endif
+  let bufnr = bufnr(a:file)
+  if bufnr == -1
+    exe a:open_opt.a:file
+  else
+    exe s:OPEN_LOADED[a:open_opt] . a:file
+  endif
+endfunction
+
 function rtags#jumpToLocationInternal(open_opt, file, line, col)
   try
-    " Avoid calling :edit <cfile>  ... just for efficiency.
-    " Part of me wants to do `exe s:LOC_OPEN_OPTS[a:open_opt]'+'.a:line.' '.a:file`
-    " but seeing as we need to set the column anyway, and we're avoiding using
-    " :edit when not needed for efficiency it's silly.
-    if open_opt != s:SAME_WINDOW || a:file != expand("%:p")
-      exe s:LOC_OPEN_OPTS[a:open_opt].a:file
-    endif
+    call rtags#goToFile(a:open_opt, a:file)
     call cursor(a:line, a:col)
     return 1
   catch /.*/

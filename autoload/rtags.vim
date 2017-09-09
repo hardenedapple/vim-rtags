@@ -492,6 +492,15 @@ endfunction
 " }}}
 
 " {{{ JumpTo
+function rtags#JumpBack()
+    if len(g:rtagsJumpStack) > 0
+        let [jump_file, lnum, col] = remove(g:rtagsJumpStack, -1)
+        call rtags#jumpToLocationInternal(jump_file, lnum, col)
+    else
+        echo "rtags: jump stack is empty"
+    endif
+endfunction
+
 function rtags#saveLocation()
     let jumpListLen = len(g:rtagsJumpStack) 
     if jumpListLen > get(g:, 'rtagsJumpStackMaxSize', 100)

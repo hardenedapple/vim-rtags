@@ -198,7 +198,7 @@ function s:update_content_cache(rc_cmd)
   if s:cache_valid()
     return
   endif
-  let to_send = join(getline(1, line('$')), "\n")
+  let to_send = getline(1, line('$'))
   if get(b:, 'rtags_sent_content', []) == to_send
     return
   endif
@@ -211,7 +211,7 @@ function s:update_content_cache(rc_cmd)
   " trailing newline or not).
   let buffer_bytes = line2byte(line('$') + 1) - 2
   let send_contents_cmd = printf("%s --wait --unsaved-file=%s:%s -V %s", a:rc_cmd, filename, buffer_bytes, filename)
-  let output = system(send_contents_cmd, to_send)
+  call system(send_contents_cmd, join(to_send, "\n"))
   let b:rtags_sent_content = to_send
 endfunction
 

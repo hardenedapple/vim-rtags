@@ -13,7 +13,7 @@ if empty(get(g:, "rtagsActiveFiletypes", [])) || index(g:rtagsActiveFiletypes, &
 
   " Default for using local mappings is the opposite of whether the global
   " mappings are defined.
-  if get(g:, 'rtagsUseDefaultMappings', !g:rtagsUseGlobalMappings)
+  if get(g:, 'rtagsUseDefaultMappings', 1)
     " Mappings are defined in plugin/rtags.vim
     for [trigger, expansion] in g:rtagsDefaultMappings
       execute 'nnoremap <silent> <buffer> <LocalLeader>' . trigger . expansion

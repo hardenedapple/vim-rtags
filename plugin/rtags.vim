@@ -4,10 +4,6 @@ endif
 
 let g:rtagsJumpStack = []
 
-if !exists("g:rtagsUseGlobalMappings")
-    let g:rtagsUseGlobalMappings = 1
-endif
-
 let g:rtagsDefaultMappings = [
   \ ['ri', " :call rtags#SymbolInfo()<CR>"],
   \ ['rj', " :call rtags#JumpToSameWindow()<CR>"],
@@ -28,12 +24,6 @@ let g:rtagsDefaultMappings = [
   \ ['rc', " :call rtags#FindSubClasses()<CR>"],
   \ ['rd', " :call rtags#Diagnostics()<CR>"],
   \ ]
-
-if g:rtagsUseGlobalMappings == 1
-  for [trigger, expansion] in g:rtagsDefaultMappings
-    execute 'nnoremap <silent> <Leader>' . trigger . expansion
-  endfor
-endif
 
 command -nargs=1 -complete=customlist,rtags#CompleteSymbols RtagsFindSymbols call rtags#FindSymbols(<q-args>)
 command -nargs=1 -complete=customlist,rtags#CompleteSymbols RtagsFindRefsByName call rtags#FindRefsByName(<q-args>)
